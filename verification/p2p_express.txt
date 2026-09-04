@@ -1,0 +1,64 @@
+
+### peer sessions
+A identity -> 200
+body: {"id":1,"email":"jdoe@mail.com","name":"J. Doe","avatar_url":null}
+B identity -> 200
+body: {"id":2,"email":"peer-b@mail.com","name":"peer-b","avatar_url":null}
+
+### A publishes, B observes
+A creates item -> {"insertId":3}
+B reads A's item -> 200
+body: {"id":3,"title":"from peer A","user_id":1}
+B lists items -> 206
+body: [{"id":1,"title":"Stuff","user_id":1},{"id":2,"title":"Doodads","user_id":1},{"id":3,"title":"from peer A","user_id":1}]
+
+### ownership is enforced across peers
+B edits A's item -> 403
+body: Forbidden
+B deletes A's item -> 403
+body: Forbidden
+A re-reads own item (unchanged) -> 200
+body: {"id":3,"title":"from peer A","user_id":1}
+
+### B publishes, A observes
+B creates item -> {"insertId":4}
+A reads B's item -> 200
+body: {"id":4,"title":"from peer B","user_id":2}
+A edits B's item -> 403
+body: Forbidden
+
+### writes propagate to the other peer
+A edits own item -> 204
+body: 
+B sees A's edit -> 200
+body: {"id":3,"title":"from peer A v2","user_id":1}
+B edits own item -> 204
+body: 
+A sees B's edit -> 200
+body: {"id":4,"title":"from peer B v2","user_id":2}
+
+### cross-peer CSRF isolation
+B's auth cookie without CSRF header -> 401
+body: Unauthorized
+B's auth cookie with mismatched CSRF pair -> 401
+body: Unauthorized
+A's CSRF token with B's auth cookie (stateless: allowed) -> 204
+body: 
+
+### deletions propagate
+A deletes own item -> 204
+body: 
+B reads deleted item -> 404
+body: Not Found
+B deletes own item -> 204
+body: 
+A reads deleted item -> 404
+body: Not Found
+final listing -> 206
+body: [{"id":1,"title":"Stuff","user_id":1},{"id":2,"title":"Doodads","user_id":1}]
+
+### session teardown is per-peer
+B logs out -> 204
+body: 
+A still authenticated -> 200
+body: {"id":1,"email":"jdoe@mail.com","name":"J. Doe","avatar_url":null}

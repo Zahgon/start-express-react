@@ -9,11 +9,11 @@
 
   Why this exists:
   - Avoids duplicated lookup code in controllers
-  - Guarantees `req.user` for downstream handlers
+  - Guarantees `request.user` for downstream handlers
   - Keeps route handlers small and predictable
 
   Related docs:
-  - https://expressjs.com/en/5x/api.html#router.param
+  - https://fastify.dev/docs/latest/Reference/Hooks/#prehandler
 */
 
 /* ************************************************************************ */
@@ -21,17 +21,15 @@
 /* ************************************************************************ */
 
 /*
-  Extend Express.Request to include `user`.
+  Extend FastifyRequest to include `user`.
 
-  After this param middleware runs successfully:
-  - `req.user` is always defined
+  After this preHandler runs successfully:
+  - `request.user` is always defined
   - Controllers and guards can rely on it without null checks
 */
-declare global {
-  namespace Express {
-    interface Request {
-      user: User;
-    }
+declare module "fastify" {
+  interface FastifyRequest {
+    user: User;
   }
 }
 

@@ -17,6 +17,10 @@ export default (<Contract>{
         request: { body: { hello: "world" } },
         response: { status: 200, body: { hello: "world" } },
       },
+      empty_body: {
+        request: {},
+        response: { status: 200, body: {} },
+      },
       unauthorized: {
         request: { body: { hello: "world" }, withoutCsrfProtection: true },
         response: { status: 401, body: {} },

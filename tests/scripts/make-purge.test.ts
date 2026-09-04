@@ -21,7 +21,7 @@ async function scaffoldProject(rootDir: string) {
 }
 
 const isAlreadyPurged = !fs.existsSync(
-  path.join(projectRoot, "src/express/modules/item"),
+  path.join(projectRoot, "src/fastify/modules/item"),
 );
 
 describe.skipIf(isAlreadyPurged)("make-purge.ts", () => {
@@ -57,23 +57,23 @@ describe.skipIf(isAlreadyPurged)("make-purge.ts", () => {
       await main(["node", "script", "-n"], tmpDir);
 
       // Verify item routes are gone
-      const expressRoutes = await fs.readFile(
-        path.join(tmpDir, "src/express/routes.ts"),
+      const fastifyRoutes = await fs.readFile(
+        path.join(tmpDir, "src/fastify/routes.ts"),
         "utf8",
       );
-      expect(expressRoutes).not.toContain("itemRoutes");
-      expect(expressRoutes).not.toContain("authRoutes");
-      expect(expressRoutes).not.toContain("userRoutes");
+      expect(fastifyRoutes).not.toContain("itemRoutes");
+      expect(fastifyRoutes).not.toContain("authRoutes");
+      expect(fastifyRoutes).not.toContain("userRoutes");
 
       // Verify files were removed
       expect(
-        await fs.pathExists(path.join(tmpDir, "src/express/modules/item")),
+        await fs.pathExists(path.join(tmpDir, "src/fastify/modules/item")),
       ).toBe(false);
       expect(
         await fs.pathExists(path.join(tmpDir, "tests/fixtures/items.ts")),
       ).toBe(false);
       expect(
-        await fs.pathExists(path.join(tmpDir, "src/express/modules/auth")),
+        await fs.pathExists(path.join(tmpDir, "src/fastify/modules/auth")),
       ).toBe(false);
 
       // Run second time to ensure idempotency and cover unmodified files path
@@ -86,22 +86,22 @@ describe.skipIf(isAlreadyPurged)("make-purge.ts", () => {
       await main(["node", "script", "-n", "--keep-auth"], tmpDir);
 
       // Verify item routes are gone, but auth routes remain
-      const expressRoutes = await fs.readFile(
-        path.join(tmpDir, "src/express/routes.ts"),
+      const fastifyRoutes = await fs.readFile(
+        path.join(tmpDir, "src/fastify/routes.ts"),
         "utf8",
       );
-      expect(expressRoutes).not.toContain("itemRoutes");
-      expect(expressRoutes).toContain("authRoutes");
+      expect(fastifyRoutes).not.toContain("itemRoutes");
+      expect(fastifyRoutes).toContain("authRoutes");
 
       // Verify files were removed/kept
       expect(
-        await fs.pathExists(path.join(tmpDir, "src/express/modules/item")),
+        await fs.pathExists(path.join(tmpDir, "src/fastify/modules/item")),
       ).toBe(false);
       expect(
         await fs.pathExists(path.join(tmpDir, "tests/fixtures/items.ts")),
       ).toBe(false);
       expect(
-        await fs.pathExists(path.join(tmpDir, "src/express/modules/auth")),
+        await fs.pathExists(path.join(tmpDir, "src/fastify/modules/auth")),
       ).toBe(true);
     });
 
@@ -120,7 +120,7 @@ describe.skipIf(isAlreadyPurged)("make-purge.ts", () => {
         expect.stringMatching(/cancelled/),
       );
       expect(
-        await fs.pathExists(path.join(tmpDir, "src/express/modules/item")),
+        await fs.pathExists(path.join(tmpDir, "src/fastify/modules/item")),
       ).toBe(true);
     });
 
@@ -139,7 +139,7 @@ describe.skipIf(isAlreadyPurged)("make-purge.ts", () => {
         expect.stringMatching(/Purge complete/),
       );
       expect(
-        await fs.pathExists(path.join(tmpDir, "src/express/modules/item")),
+        await fs.pathExists(path.join(tmpDir, "src/fastify/modules/item")),
       ).toBe(false);
     });
   });
@@ -185,7 +185,7 @@ describe.skipIf(isAlreadyPurged)("make-purge.ts", () => {
       );
 
       const result = content.replace(
-        `type Item = import("../express/modules/item/itemSchemas").Item;\n`,
+        `type Item = import("../fastify/modules/item/itemSchemas").Item;\n`,
         "",
       );
 
@@ -227,17 +227,17 @@ describe.skipIf(isAlreadyPurged)("make-purge.ts", () => {
       expect(result).toContain("AccountPage");
     });
 
-    it("removes item route from express routes.ts", async () => {
+    it("removes item route from fastify routes.ts", async () => {
       await scaffoldProject(tmpDir);
 
       const content = await fs.readFile(
-        path.join(tmpDir, "src/express/routes.ts"),
+        path.join(tmpDir, "src/fastify/routes.ts"),
         "utf8",
       );
 
       const result = content
         .replace(`import itemRoutes from "./modules/item/itemRoutes";\n`, "")
-        .replace(`router.use(itemRoutes);\n`, "");
+        .replace(`  await fastify.register(itemRoutes);\n`, "");
 
       expect(result).not.toContain("itemRoutes");
       expect(result).toContain("authRoutes");
@@ -290,7 +290,7 @@ describe.skipIf(isAlreadyPurged)("make-purge.ts", () => {
       );
 
       const result = content.replace(
-        `type User = import("../express/modules/user/userSchemas").User;\n`,
+        `type User = import("../fastify/modules/user/userSchemas").User;\n`,
         "",
       );
 
@@ -403,19 +403,19 @@ describe.skipIf(isAlreadyPurged)("make-purge.ts", () => {
       expect(result).toContain("Home");
     });
 
-    it("removes auth/user routes from express routes.ts", async () => {
+    it("removes auth/user routes from fastify routes.ts", async () => {
       await scaffoldProject(tmpDir);
 
       const content = await fs.readFile(
-        path.join(tmpDir, "src/express/routes.ts"),
+        path.join(tmpDir, "src/fastify/routes.ts"),
         "utf8",
       );
 
       const result = content
         .replace(`import authRoutes from "./modules/auth/authRoutes";\n`, "")
-        .replace(`router.use(authRoutes);\n`, "")
+        .replace(`  await fastify.register(authRoutes);\n`, "")
         .replace(`import userRoutes from "./modules/user/userRoutes";\n`, "")
-        .replace(`router.use(userRoutes);\n`, "");
+        .replace(`  await fastify.register(userRoutes);\n`, "");
 
       expect(result).not.toContain("authRoutes");
       expect(result).not.toContain("userRoutes");

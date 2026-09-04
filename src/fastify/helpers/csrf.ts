@@ -1,20 +1,20 @@
 /*
   Purpose:
-  Collection of shared Express middlewares used across the API.
+  Collection of shared Fastify hooks used across the API.
 
   This file intentionally contains only:
-  - Stateless middleware
+  - Stateless hooks
   - Security-related cross-cutting concerns
 
   No business logic should live here.
 
   Related docs:
-  - https://expressjs.com/en/guide/using-middleware.html
+  - https://fastify.dev/docs/latest/Reference/Hooks/
   - https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html
   - https://github.com/Psifi-Solutions/csrf-csrf/blob/main/FAQ.md
 */
 
-import type { Request, RequestHandler } from "express";
+import type { FastifyRequest, onRequestAsyncHookHandler } from "fastify";
 
 /* ************************************************************************ */
 /* CSRF protection (Client-side double-submit pattern)                      */
@@ -26,7 +26,7 @@ import type { Request, RequestHandler } from "express";
   Design choices:
   - Uses a double-submit cookie strategy
   - Requires no server-side storage (stateless)
-  - Designed for same-site React + Express architecture
+  - Designed for same-site React + Fastify architecture
 
   cookieName:
   - Uses "__Host-" prefix to enforce:
@@ -44,16 +44,23 @@ import type { Request, RequestHandler } from "express";
 const csrfDefaults = {
   cookieName: "__Host-x-csrf-token",
   ignoredMethods: ["GET", "HEAD", "OPTIONS"],
-  getCsrfTokenFromRequest: (req: Request) => req.headers["x-csrf-token"],
+  getCsrfTokenFromRequest: (request: FastifyRequest) =>
+    request.headers["x-csrf-token"],
 };
 
 /*
   csrf()
 
-  Factory returning an Express middleware.
+  Factory returning a Fastify onRequest hook.
+
+  Why an onRequest hook?
+  - It is the earliest step of the Fastify lifecycle
+  - It runs before body parsing, so payloads of rejected requests are never
+    parsed (this mirrors the "csrf() before json()" ordering of the Express
+    implementation)
 
   Why a factory?
-  - Allows overriding defaults per router if needed
+  - Allows overriding defaults per instance if needed
   - Keeps global configuration explicit and testable
 
   Security model:
@@ -67,19 +74,20 @@ export const csrf =
     cookieName,
     ignoredMethods,
     getCsrfTokenFromRequest,
-  } = csrfDefaults): RequestHandler =>
-  (req, res, next) => {
+  } = csrfDefaults): onRequestAsyncHookHandler =>
+  async (request, reply) => {
     /*
       Skip CSRF validation for safe methods.
       This keeps read-only endpoints frictionless.
     */
-    if (req.method.match(new RegExp(`(${ignoredMethods.join("|")})`, "i"))) {
-      next();
+    if (
+      request.method.match(new RegExp(`(${ignoredMethods.join("|")})`, "i"))
+    ) {
       return;
     }
 
-    const tokenFromRequest = getCsrfTokenFromRequest(req);
-    const tokenFromCookie = req.cookies[cookieName];
+    const tokenFromRequest = getCsrfTokenFromRequest(request);
+    const tokenFromCookie = request.cookies[cookieName];
 
     /*
       Reject the request if:
@@ -91,11 +99,11 @@ export const csrf =
       authentication failures. An attacker receiving 403 would know
       their JWT is valid and only the CSRF token is wrong.
       A uniform 401 reveals nothing about what specifically failed.
+
+      Returning the reply tells Fastify the lifecycle is over.
     */
     if (tokenFromRequest == null || tokenFromRequest !== tokenFromCookie) {
-      res.sendStatus(401);
-      return;
+      reply.code(401).send();
+      return reply;
     }
-
-    next();
   };

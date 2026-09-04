@@ -53,28 +53,25 @@ async function purgeItems(rootDir: string) {
   console.info("\nPurging 'item' module...");
 
   // Remove item module files and related React components.
-  await remove(rootDir, "src/express/modules/item");
+  await remove(rootDir, "src/fastify/modules/item");
   await remove(rootDir, "src/react/components/item");
   await remove(rootDir, "tests/react/components/item");
   await remove(rootDir, "tests/fixtures/items.ts");
   await remove(rootDir, "tests/contracts/items.ts");
 
   // Remove item import and fixture seeding in test-utils.ts
-  await updateFile(rootDir, "tests/express/test-utils.ts", (content) => {
+  await updateFile(rootDir, "tests/fastify/test-utils.ts", (content) => {
     const itemInsertRegex = / {2}\/\* insert all items \*\/[\s\S]*?\}\n\n?/m;
     return content
       .replace(`import { allItems } from "../fixtures/items";\n`, "")
       .replace(itemInsertRegex, "");
   });
 
-  // Remove item routes from Express.
-  await updateFile(rootDir, "src/express/routes.ts", (content) =>
+  // Remove item routes from Fastify.
+  await updateFile(rootDir, "src/fastify/routes.ts", (content) =>
     content
-      .replace(
-        /import itemRoutes from "\.\/modules\/item\/itemRoutes";\n+/m,
-        "",
-      )
-      .replace(`router.use(itemRoutes);\n`, ""),
+      .replace(/import itemRoutes from "\.\/modules\/item\/itemRoutes";\n/m, "")
+      .replace(`  await fastify.register(itemRoutes);\n`, ""),
   );
 
   // Remove item routes and import from React.
@@ -99,7 +96,7 @@ async function purgeItems(rootDir: string) {
   // Remove Item type.
   await updateFile(rootDir, "src/types/index.d.ts", (content) =>
     content.replace(
-      `type Item = import("../express/modules/item/itemSchemas").Item;\n`,
+      `type Item = import("../fastify/modules/item/itemSchemas").Item;\n`,
       "",
     ),
   );
@@ -115,18 +112,18 @@ async function purgeAuth(rootDir: string) {
   console.info("\nPurging 'auth' and 'user' modules...");
 
   // Remove auth and user module files and related React components.
-  await remove(rootDir, "src/express/modules/auth");
-  await remove(rootDir, "src/express/modules/user");
+  await remove(rootDir, "src/fastify/modules/auth");
+  await remove(rootDir, "src/fastify/modules/user");
   await remove(rootDir, "src/react/components/auth");
   await remove(rootDir, "tests/react/components/auth");
 
-  // Remove auth/user routes from Express.
-  await updateFile(rootDir, "src/express/routes.ts", (content) =>
+  // Remove auth/user routes from Fastify.
+  await updateFile(rootDir, "src/fastify/routes.ts", (content) =>
     content
       .replace(`import authRoutes from "./modules/auth/authRoutes";\n`, "")
-      .replace(`router.use(authRoutes);\n`, "")
+      .replace(`  await fastify.register(authRoutes);\n`, "")
       .replace(`import userRoutes from "./modules/user/userRoutes";\n`, "")
-      .replace(`router.use(userRoutes);\n`, ""),
+      .replace(`  await fastify.register(userRoutes);\n`, ""),
   );
 
   // Remove user and magic_link_token tables from schema.
@@ -145,7 +142,7 @@ async function purgeAuth(rootDir: string) {
   // Remove User type.
   await updateFile(rootDir, "src/types/index.d.ts", (content) =>
     content.replace(
-      `type User = import("../express/modules/user/userSchemas").User;\n`,
+      `type User = import("../fastify/modules/user/userSchemas").User;\n`,
       "",
     ),
   );

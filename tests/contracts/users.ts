@@ -5,6 +5,9 @@ const dummyImageBuffer = Buffer.from(
   "base64",
 );
 
+// One byte over the 2MB limit configured for the avatar uploader
+const oversizedImageBuffer = Buffer.alloc(2 * 1024 * 1024 + 1);
+
 export default (<Contract>{
   read_me: {
     method: "get",
@@ -101,6 +104,34 @@ export default (<Contract>{
         response: {
           status: 400,
           body: { message: expect.stringMatching(/Invalid file type/i) },
+        },
+      },
+      unexpected_field_name: {
+        request: {
+          jwtPayload: { sub: fooUser.id },
+          attach: {
+            name: "picture",
+            file: dummyImageBuffer,
+            options: { filename: "avatar.webp", contentType: "image/webp" },
+          },
+        },
+        response: {
+          status: 400,
+          body: { message: expect.stringMatching(/No file attached/i) },
+        },
+      },
+      file_too_large: {
+        request: {
+          jwtPayload: { sub: fooUser.id },
+          attach: {
+            name: "avatar",
+            file: oversizedImageBuffer,
+            options: { filename: "avatar.webp", contentType: "image/webp" },
+          },
+        },
+        response: {
+          status: 400,
+          body: { message: expect.stringMatching(/File too large/i) },
         },
       },
       no_attached_file: {

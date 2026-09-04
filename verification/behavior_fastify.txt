@@ -1,0 +1,366 @@
+
+### health
+GET /api/health -> 200
+content-type: application/json; charset=utf-8.
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: {"hello":"world"}
+POST /api/health (csrf ok) -> 200
+content-type: application/json; charset=utf-8.
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: {"hello":"world"}
+POST /api/health (no csrf) -> 401
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: 
+DELETE /api/health (csrf ok) -> 204
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: 
+DELETE /api/health (no csrf) -> 401
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: 
+PUT /api/health (unrouted method) -> 404
+cache-control: private, no-store.
+content-type: text/html; charset=utf-8.
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: <!DOCTYPE html>
+<!--
+  Purpose:
+  Base HTML template used for both development and production.
+
+  Responsibilities:
+  - Provide the root container for React
+  - Serve as the entry point for SSR and client hydration
+  - Define global layout, metadata, and base styles
+
+  Design notes:
+  - This file is intentionally minimal
+  - No dynamic logic lives here
+  - All rendering is delegated to React (SSR 
+
+### items (public)
+GET /api/items (range 0-9) -> 206
+accept-ranges: items.
+content-range: items 0-1/2.
+content-type: application/json; charset=utf-8.
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: [{"id":1,"title":"Stuff","user_id":1},{"id":2,"title":"Doodads","user_id":1}]
+GET /api/items (no range) -> 400
+accept-ranges: items.
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: 
+GET /api/items (range 9999-9999) -> 416
+accept-ranges: items.
+content-range: items */2.
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: 
+GET /api/items (bad range syntax) -> 400
+accept-ranges: items.
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: 
+GET /api/items/1 -> 200
+content-type: application/json; charset=utf-8.
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: {"id":1,"title":"Stuff","user_id":1}
+GET /api/items/NaN -> 404
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: 
+
+### items (unauthenticated writes)
+POST /api/items (no auth) -> 401
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: 
+PUT /api/items/1 (no auth) -> 401
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: 
+DELETE /api/items/1 (no auth) -> 401
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: 
+
+### users (unauthenticated)
+GET /api/users/me (no auth) -> 401
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: 
+PUT /api/users/me (no auth) -> 401
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: 
+DELETE /api/users/me (no auth) -> 401
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: 
+POST /api/users/me/avatar (no auth) -> 401
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: 
+
+### auth
+POST /api/auth/magic-link (empty body) -> 400
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: 
+POST /api/auth/verify (empty body) -> 400
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: 
+POST /api/auth/verify (unknown token) -> 401
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: 
+POST /api/auth/magic-link (jdoe@mail.com) -> 204
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: 
+POST /api/auth/verify (fresh token) -> 201
+content-type: application/json; charset=utf-8.
+set-cookie: __host-auth=<JWT>; max-age=604800; path=/; httponly; secure; samesite=strict.
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: {"id":1,"email":"jdoe@mail.com","name":"J. Doe","avatar_url":null}
+POST /api/auth/verify (token replay) -> 401
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: 
+
+### users (authenticated)
+GET /api/users/me -> 200
+content-type: application/json; charset=utf-8.
+set-cookie: __host-auth=<JWT>; max-age=604800; path=/; httponly; secure; samesite=strict.
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: {"id":1,"email":"jdoe@mail.com","name":"J. Doe","avatar_url":null}
+PUT /api/users/me -> 204
+set-cookie: __host-auth=<JWT>; max-age=604800; path=/; httponly; secure; samesite=strict.
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: 
+PUT /api/users/me (invalid email) -> 400
+content-type: application/json; charset=utf-8.
+set-cookie: __host-auth=<JWT>; max-age=604800; path=/; httponly; secure; samesite=strict.
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: [{"origin":"string","code":"invalid_format","format":"email","pattern":"/^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$/","path":["email"],"message":"Invalid email address"}]
+
+### items (authenticated)
+POST /api/items (bad body) -> 400
+content-type: application/json; charset=utf-8.
+set-cookie: __host-auth=<JWT>; max-age=604800; path=/; httponly; secure; samesite=strict.
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: [{"expected":"string","code":"invalid_type","path":["title"],"message":"Invalid input: expected string, received undefined"}]
+POST /api/items (ok) -> 201
+content-type: application/json; charset=utf-8.
+set-cookie: __host-auth=<JWT>; max-age=604800; path=/; httponly; secure; samesite=strict.
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: {"insertId":3}
+PUT /api/items/<new> (owner) -> 204
+set-cookie: __host-auth=<JWT>; max-age=604800; path=/; httponly; secure; samesite=strict.
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: 
+GET /api/items/<new> after edit -> 200
+content-type: application/json; charset=utf-8.
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: {"id":4,"title":"harness edited","user_id":1}
+PUT /api/items/2 (not owner) -> 204
+set-cookie: __host-auth=<JWT>; max-age=604800; path=/; httponly; secure; samesite=strict.
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: 
+DELETE /api/items/2 (not owner) -> 204
+set-cookie: __host-auth=<JWT>; max-age=604800; path=/; httponly; secure; samesite=strict.
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: 
+PUT /api/items/NaN (not found) -> 404
+set-cookie: __host-auth=<JWT>; max-age=604800; path=/; httponly; secure; samesite=strict.
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: 
+DELETE /api/items/NaN (idempotent) -> 204
+set-cookie: __host-auth=<JWT>; max-age=604800; path=/; httponly; secure; samesite=strict.
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: 
+DELETE /api/items/<new> -> 204
+set-cookie: __host-auth=<JWT>; max-age=604800; path=/; httponly; secure; samesite=strict.
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: 
+GET /api/items/<new> after delete -> 404
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: 
+
+### avatar
+POST /api/users/me/avatar (no file) -> 400
+content-type: application/json; charset=utf-8.
+set-cookie: __host-auth=<JWT>; max-age=604800; path=/; httponly; secure; samesite=strict.
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: {"message":"No file attached"}
+POST /api/users/me/avatar (bad type) -> 400
+content-type: application/json; charset=utf-8.
+set-cookie: __host-auth=<JWT>; max-age=604800; path=/; httponly; secure; samesite=strict.
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: {"message":"Invalid file type: text/plain. Allowed types: image/jpeg, image/png, image/webp, image/gif","stack":"Error: Invalid file type: text/plain. Allowed types: image/jpeg, image/png, image/webp, image/gif\n    at Object.<anonymous> (/Users/macbookpro/Downloads/migratiopn_script/start-express-react/src/fastify/helpers/upload.ts:108:54)\n    at process.processTicksAndRejections (node:internal/
+POST /api/users/me/avatar (too large) -> 400
+content-type: application/json; charset=utf-8.
+set-cookie: __host-auth=<JWT>; max-age=604800; path=/; httponly; secure; samesite=strict.
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: {"message":"File too large. Maximum allowed size: 2097152 bytes","stack":"<STACK>"}
+POST /api/users/me/avatar (ok) -> 201
+content-type: application/json; charset=utf-8.
+set-cookie: __host-auth=<JWT>; max-age=604800; path=/; httponly; secure; samesite=strict.
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: {"avatar_url":"/uploads/avatars/<UUID>.webp"}
+GET <avatar url> -> 200
+accept-ranges: bytes.
+cache-control: public, max-age=0.
+content-type: image/webp.
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: RIFF$...WEBPVP8 ....0....*......4%...p......
+GET /uploads/does-not-exist.webp -> 404
+cache-control: private, no-store.
+content-type: text/html; charset=utf-8.
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: <!DOCTYPE html>
+<!--
+  Purpose:
+  Base HTML template used for both development and production.
+
+  Responsibilities:
+  - Provide the root container for React
+  - Serve as the entry point for SSR and client hydration
+  - Define global layout, metadata, and base styles
+
+  Design notes:
+  - This file is intentionally minimal
+  - No dynamic logic lives here
+  - All rendering is delegated to React (SSR 
+DELETE /api/users/me/avatar -> 204
+set-cookie: __host-auth=<JWT>; max-age=604800; path=/; httponly; secure; samesite=strict.
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: 
+GET /api/users/me after avatar delete -> 200
+content-type: application/json; charset=utf-8.
+set-cookie: __host-auth=<JWT>; max-age=604800; path=/; httponly; secure; samesite=strict.
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: {"id":1,"email":"jdoe@mail.com","name":"J. Doe","avatar_url":null}
+
+### ssr
+GET / -> 200
+cache-control: private, no-store.
+content-type: text/html; charset=utf-8.
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: <!DOCTYPE html>
+<!--
+  Purpose:
+  Base HTML template used for both development and production.
+
+  Responsibilities:
+  - Provide the root container for React
+  - Serve as the entry point for SSR and client hydration
+  - Define global layout, metadata, and base styles
+
+  Design notes:
+  - This file is intentionally minimal
+  - No dynamic logic lives here
+  - All rendering is delegated to React (SSR 
+GET /items -> 200
+cache-control: private, no-store.
+content-type: text/html; charset=utf-8.
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: <!DOCTYPE html>
+<!--
+  Purpose:
+  Base HTML template used for both development and production.
+
+  Responsibilities:
+  - Provide the root container for React
+  - Serve as the entry point for SSR and client hydration
+  - Define global layout, metadata, and base styles
+
+  Design notes:
+  - This file is intentionally minimal
+  - No dynamic logic lives here
+  - All rendering is delegated to React (SSR 
+GET /account (authenticated) -> 200
+cache-control: private, no-store.
+content-type: text/html; charset=utf-8.
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: <!DOCTYPE html>
+<!--
+  Purpose:
+  Base HTML template used for both development and production.
+
+  Responsibilities:
+  - Provide the root container for React
+  - Serve as the entry point for SSR and client hydration
+  - Define global layout, metadata, and base styles
+
+  Design notes:
+  - This file is intentionally minimal
+  - No dynamic logic lives here
+  - All rendering is delegated to React (SSR 
+GET /no-such-page -> 404
+cache-control: private, no-store.
+content-type: text/html; charset=utf-8.
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: <!DOCTYPE html>
+<!--
+  Purpose:
+  Base HTML template used for both development and production.
+
+  Responsibilities:
+  - Provide the root container for React
+  - Serve as the entry point for SSR and client hydration
+  - Define global layout, metadata, and base styles
+
+  Design notes:
+  - This file is intentionally minimal
+  - No dynamic logic lives here
+  - All rendering is delegated to React (SSR 
+
+### session teardown
+POST /api/auth/logout -> 204
+set-cookie: __host-auth=; max-age=0; path=/; httponly; secure; samesite=strict.
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: 
+DELETE /api/users/me -> 204
+set-cookie: __host-auth=<JWT>; max-age=604800; path=/; httponly; secure; samesite=strict.
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: 
+GET /api/users/me after account delete -> 401
+x-content-type-options: nosniff.
+x-frame-options: sameorigin.
+body: 

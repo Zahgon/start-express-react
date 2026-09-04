@@ -7,7 +7,7 @@
 
 ## Stack
 
-- **Backend**: Node.js + Express 5, TypeScript, Zod (validation), `node:sqlite` (sync API)
+- **Backend**: Node.js + Fastify 5, TypeScript, Zod (validation), `node:sqlite` (sync API)
 - **Frontend**: React 19, React Router (with SSR/hydration), Vite, Pico CSS
 - **Database**: SQLite — zero-config, synchronous, file at `data/sqlite/database.sqlite`
 - **Tooling**: Biome (lint + format), Vitest (tests), tsx (runtime), Docker (optional)
@@ -18,7 +18,7 @@
 
 ```
 .
-├── server.ts                  # Single entry point — bridges Express + Vite
+├── server.ts                  # Single entry point — bridges Fastify + Vite
 ├── index.html                 # Vite root — contains <!--ssr-outlet-->
 ├── data/
 │   ├── mailpit/               # Mailpit persistence (Docker)
@@ -34,17 +34,17 @@
 │   │   ├── schema.sql         # SQLite schema — source of truth for DB structure
 │   │   ├── migrations/        # Forward-only migration scripts (production)
 │   │   └── seeder.sql         # Test/seed data
-│   ├── express/
-│   │   ├── routes.ts          # Registers all Express modules
+│   ├── fastify/
+│   │   ├── routes.ts          # Registers all Fastify modules
 │   │   ├── helpers/           # Infrastructure: cache, validation, converters
 │   │   └── modules/           # Business modules (item/, user/, auth/, ...)
 │   │       └── <name>/
-│   │           ├── <name>Routes.ts            # Route declarations
+│   │           ├── <name>Routes.ts            # Route declarations (Fastify plugin)
 │   │           ├── <name>Actions.ts           # Request handlers (thin, delegate to repo)
 │   │           ├── <name>ParamConverter.ts    # Converts URL params to entity-typed objects
 │   │           ├── <name>Repository.ts        # All SQL queries for this entity
 │   │           ├── <name>Schemas.ts           # Single Source of Truth Zod schemas & types (ItemSchema, ItemDTOSchema)
-│   │           └── <name>Validators.ts        # Express validation middleware handlers ({ add, edit })
+│   │           └── <name>Validators.ts        # Fastify validation preHandler hooks ({ add, edit })
 │   ├── react/
 │   │   ├── routes.tsx         # React Router route tree
 │   │   ├── helpers/           # Hooks, mutations, fetch utilities
@@ -66,7 +66,7 @@
 npm install
 cp .env.sample .env
 npm run database:reset      # Drop all, replay schema + migrations + seeder
-npm run dev                # Start dev server (Express + Vite together on port 5173)
+npm run dev                # Start dev server (Fastify + Vite together on port 5173)
 ```
 
 ### Database
@@ -98,15 +98,15 @@ npx vitest run --exclude tests/install   # Run all tests except install checks
 npm run make:clone -- <source_dir> <dest_dir> <OldName> <NewName>
 
 # Example: create a "post" module from "item"
-npm run make:clone -- src/express/modules/item src/express/modules/post Item Post
+npm run make:clone -- src/fastify/modules/item src/fastify/modules/post Item Post
 ```
 
-After cloning an express module, register the new routes in src/express/routes.ts:
+After cloning a fastify module, register the new plugin in src/fastify/routes.ts:
 
 ```typescript
 import postRoutes from "./modules/post/postRoutes";
 
-router.use(postRoutes);
+await fastify.register(postRoutes);
 ```
 
 After cloning a react module, register the new routes in src/react/routes.tsx:
@@ -150,10 +150,10 @@ docker compose -f compose.prod.yaml up --build   # Build + start prod containers
 
 ### One server (not two)
 
-There is **one** Node process serving both the Express API and the React frontend via SSR. `server.ts` is the single entry point. Vite runs in middleware mode embedded inside Express — there is no separate Vite dev server to proxy.
+There is **one** Node process serving both the Fastify API and the React frontend via SSR. `server.ts` is the single entry point. Vite runs in middleware mode embedded inside Fastify through `@fastify/middie` — there is no separate Vite dev server to proxy.
 
-- API routes (`/api/*`) are handled by Express.
-- All other routes fall through to the SSR catch-all, which calls `entry-server.tsx`.
+- API routes (`/api/*`) are handled by Fastify.
+- All other routes fall through to the SSR catch-all (`setNotFoundHandler`), which calls `entry-server.tsx`.
 - The client then hydrates via `entry-client.tsx`.
 
 Do not add a second server, a proxy config, or separate ports.
@@ -164,15 +164,15 @@ Every database interaction must live inside a `*Repository.ts` class. Actions mu
 
 ```ts
 // ✅ Correct — action delegates to repository
-const browse: RequestHandler = (req, res) => {
+const browse: RouteHandler = async (request, reply) => {
   const items = itemRepository.findAll(10, 0);
-  res.json(items);
+  reply.send(items);
 };
 
 // ❌ Wrong — SQL in an action
-const browse: RequestHandler = (req, res) => {
+const browse: RouteHandler = async (request, reply) => {
   const rows = database.prepare("select * from item").all();
-  res.json(rows);
+  reply.send(rows);
 };
 ```
 
@@ -183,7 +183,7 @@ Zod schemas are centralized per module in `*Schemas.ts` as a Single Source of Tr
 Input DTO schemas (e.g. `ItemDTOSchema`) are derived from the master entity schema using `.omit()` to enforce DRY validation rules across boundaries.
 
 ```ts
-// In src/express/modules/item/itemSchemas.ts
+// In src/fastify/modules/item/itemSchemas.ts
 export const ItemSchema = z.object({
   id: z.number(),
   title: z.string().max(255),
@@ -192,7 +192,7 @@ export const ItemSchema = z.object({
 
 export const ItemDTOSchema = ItemSchema.omit({ id: true, user_id: true });
 
-// In src/express/modules/item/itemRepository.ts
+// In src/fastify/modules/item/itemRepository.ts
 import { ItemSchema } from "./itemSchemas";
 
 // ✅ Correct — validates SQL raw row against schema
@@ -206,7 +206,7 @@ return row as Item;
 
 `node:sqlite` is synchronous by design. Repository methods must execute SQL queries synchronously and must not wrap database calls in `async`/`await`. 
 
-However, a repository method *may* be marked `async` if it strictly requires interaction with genuinely asynchronous external resources (e.g., third-party APIs, asynchronous file system reads). Actions (in `*Actions.ts`) generally remain `async` to handle `req.body` and orchestrate these calls.
+However, a repository method *may* be marked `async` if it strictly requires interaction with genuinely asynchronous external resources (e.g., third-party APIs, asynchronous file system reads). Actions (in `*Actions.ts`) are `async` (Fastify handlers are promise-based) to handle `request.body` and orchestrate these calls.
 
 ```ts
 // ✅ Correct SQLite query
@@ -232,7 +232,7 @@ The `destroy` action uses `softDelete` (sets `deleted_at = datetime('now')`), no
 
 ### Validation at the edge with Zod
 
-Input validation belongs in a `*Validators.ts` file using `createValidator` and DTO schemas from `*Schemas.ts`, registered as middleware before actions in `*Routes.ts`. Validators merge client DTO input with trusted server-side injections (`inject: (req) => ({ user_id: req.me.id })`), so actions receive complete, trusted payloads (`req.body`).
+Input validation belongs in a `*Validators.ts` file using `createValidator` and DTO schemas from `*Schemas.ts`, registered as a `preHandler` hook before actions in `*Routes.ts`. Validators merge client DTO input with trusted server-side injections (`inject: (req) => ({ user_id: req.me.id })`), so actions receive complete, trusted payloads (`request.body`).
 
 ```ts
 // In itemValidators.ts
@@ -242,7 +242,11 @@ const add = createValidator(
 );
 
 // In itemRoutes.ts
-router.post(BASE_PATH, itemValidators.add, itemActions.add);
+fastify.post<{ Body: ItemDTOWithUserId }>(
+  BASE_PATH,
+  { preHandler: [authActions.verifyAccessToken, itemValidators.add] },
+  itemActions.add,
+);
 ```
 
 ### Pagination
@@ -277,11 +281,11 @@ Both auth cookies use the `__Host-` prefix, `SameSite=strict`, and `Path=/`. Do 
 
 ### Helmet and CSP
 
-Helmet is enabled in all environments. `contentSecurityPolicy` is **disabled in development** (Vite WebSockets conflict) and **enabled in production**. Do not disable Helmet.
+`@fastify/helmet` is enabled in all environments. `contentSecurityPolicy` is **disabled in development** (Vite WebSockets conflict) and **enabled in production**. Do not disable Helmet.
 
 ### No CORS
 
-There is no CORS configuration. Cross-site requests are intentionally blocked. The frontend and API share the same origin. Do not add CORS middleware unless explicitly required by a new requirement.
+There is no CORS configuration. Cross-site requests are intentionally blocked. The frontend and API share the same origin. Do not add `@fastify/cors` unless explicitly required by a new requirement.
 
 ### No dangerouslySetInnerHTML
 
@@ -312,11 +316,11 @@ Never commit `.env`. Never commit `data/sqlite/database.sqlite`. Both are in `.g
 
 | Term | What it means in this codebase |
 |---|---|
-| **Module** | A self-contained Express feature folder: `*Routes.ts`, `*Actions.ts`, `*Repository.ts`, `*Schemas.ts`, `*Validators.ts` |
-| **Action** | An Express `RequestHandler` — thin, delegates to repository, sends HTTP response |
+| **Module** | A self-contained Fastify feature folder: `*Routes.ts`, `*Actions.ts`, `*Repository.ts`, `*Schemas.ts`, `*Validators.ts` |
+| **Action** | A Fastify `RouteHandler` — thin, delegates to repository, sends HTTP response |
 | **Repository** | Class encapsulating all SQL for one table — the only place raw SQL is allowed |
 | **Schema** | Centralized Zod schema in `*Schemas.ts` defining master entity and derived input DTO shapes |
-| **Validator** | Express middleware in `*Validators.ts` created via `createValidator` to validate request targets |
+| **Validator** | Fastify `preHandler` hook in `*Validators.ts` created via `createValidator` to validate request targets |
 | **Contract** | A test declaration in `tests/contracts/` describing expected API behavior |
 | **SSR outlet** | The `<!--ssr-outlet-->` placeholder in `index.html` where server-rendered HTML is injected |
 | **Hydration** | Client-side React taking over the server-rendered DOM via `hydrateRoot` in `entry-client.tsx` |

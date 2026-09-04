@@ -9,25 +9,23 @@
 
   Why this exists:
   - Avoids duplicated lookup code in controllers
-  - Guarantees `req.item` for downstream handlers
+  - Guarantees `request.item` for downstream handlers
   - Keeps route handlers small and predictable
 
   Related docs:
-  - https://expressjs.com/en/5x/api.html#router.param
+  - https://fastify.dev/docs/latest/Reference/Hooks/#prehandler
 */
 
 /*
-  Extend Express.Request to include `item`.
+  Extend FastifyRequest to include `item`.
 
-  After this param middleware runs successfully:
-  - `req.item` is always defined
+  After this preHandler runs successfully:
+  - `request.item` is always defined
   - Controllers and guards can rely on it without null checks
 */
-declare global {
-  namespace Express {
-    interface Request {
-      item: Item;
-    }
+declare module "fastify" {
+  interface FastifyRequest {
+    item: Item;
   }
 }
 

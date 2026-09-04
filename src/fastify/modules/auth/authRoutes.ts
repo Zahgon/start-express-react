@@ -12,16 +12,14 @@
 
   Related docs:
   - https://restfulapi.net/resource-naming/
-  - https://expressjs.com/en/guide/routing.html
+  - https://fastify.dev/docs/latest/Reference/Routes/
 */
 
 /* ************************************************************************ */
-/* Router setup                                                             */
+/* Plugin setup                                                             */
 /* ************************************************************************ */
 
-import { Router } from "express";
-
-const router = Router();
+import type { FastifyPluginAsync } from "fastify";
 
 /* ************************************************************************ */
 /* Dependencies                                                             */
@@ -32,18 +30,26 @@ const router = Router();
   - Thin controllers
   - One action per route
 */
-import authActions from "./authActions";
+import authActions, {
+  type MagicLinkRoute,
+  type VerifyRoute,
+} from "./authActions";
 
 /* ************************************************************************ */
 /* Public routes                                                            */
 /* ************************************************************************ */
 
-router.post("/api/auth/magic-link", authActions.sendMagicLink);
-router.post("/api/auth/verify", authActions.verifyMagicLink);
-router.post("/api/auth/logout", authActions.destroyAccessToken);
+const authRoutes: FastifyPluginAsync = async (fastify) => {
+  fastify.post<MagicLinkRoute>(
+    "/api/auth/magic-link",
+    authActions.sendMagicLink,
+  );
+  fastify.post<VerifyRoute>("/api/auth/verify", authActions.verifyMagicLink);
+  fastify.post("/api/auth/logout", authActions.destroyAccessToken);
+};
 
 /* ************************************************************************ */
 /* Export                                                                   */
 /* ************************************************************************ */
 
-export default router;
+export default authRoutes;

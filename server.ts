@@ -13,7 +13,7 @@
  * Main application entry point.
  *
  * Responsibilities:
- * - Create and configure the Express server
+ * - Create and configure the Fastify server
  * - Mount API routes
  * - Integrate Vite for SSR in development
  * - Serve static assets in production
@@ -21,10 +21,10 @@
  * Design notes:
  * - Single server for API + SSR
  * - Fully stateless backend
- * - No Express sessions
+ * - No server-side sessions
  *
  * Related docs:
- * - https://expressjs.com/
+ * - https://fastify.dev/
  * - https://vitejs.dev/guide/ssr
  */
 
@@ -41,10 +41,12 @@ const port = serverEnv.APP_PORT;
 const indexHtml = readIndexHtml();
 
 // Server creation is async because it may initialize Vite in dev mode
-createServerWith("./src/express/routes").then((server) => {
-  server.listen(port, () => {
-    console.info(`Listening on http://localhost:${port}`);
-  });
+createServerWith("./src/fastify/routes").then(async (app) => {
+  // Listening on "::" keeps the server reachable from outside a container,
+  // which is what Express did by default.
+  await app.listen({ port, host: "::" });
+
+  console.info(`Listening on http://localhost:${port}`);
 });
 
 /* ************************************************************************ */
@@ -97,17 +99,46 @@ globalThis.fetch = (resource, init) => {
 };
 
 /**
- * Express / Vite integration
+ * Fastify / Vite integration
  */
-import http from "node:http";
-import express, { type ErrorRequestHandler } from "express";
-import { rateLimit } from "express-rate-limit";
-import helmet from "helmet";
-import { MulterError } from "multer";
+import fastifyHelmet from "@fastify/helmet";
+import fastifyRateLimit from "@fastify/rate-limit";
+import fastifyStatic from "@fastify/static";
+import type { FastifyError } from "fastify";
+import Fastify from "fastify";
 
 export async function createServerWith(routesPath: string) {
-  const app = express();
-  const httpServer = http.createServer(app);
+  const app = Fastify();
+
+  // Fastify owns the underlying Node HTTP server; Vite's HMR attaches to it.
+  const httpServer = app.server;
+
+  /* ********************************************************************** */
+  /* Error handling                                                         */
+  /* ********************************************************************** */
+
+  /*
+    Error handler:
+    Logs errors for debugging, then sends a structured JSON response instead of
+    Fastify's default payload. Stack traces are hidden in production to avoid
+    leaking implementation details.
+
+    It is registered first: every plugin encapsulation context created later
+    inherits it.
+  */
+  app.setErrorHandler<FastifyError & { status?: number }>(
+    (err, request, reply) => {
+      console.error(err);
+      console.error("on req:", request.method, request.url);
+
+      const status = err.status ?? err.statusCode ?? 500;
+
+      reply.code(status).send({
+        message: err.message ?? "Internal Server Error",
+        ...(isProduction ? {} : { stack: err.stack }),
+      });
+    },
+  );
 
   /* ********************************************************************** */
   /* Helmet                                                                 */
@@ -121,11 +152,9 @@ export async function createServerWith(routesPath: string) {
   // In development it is disabled because Vite's HMR relies on
   // WebSocket connections and dynamic module evaluation, which
   // are blocked by Helmet's default CSP.
-  app.use(
-    helmet({
-      contentSecurityPolicy: isProduction,
-    }),
-  );
+  await app.register(fastifyHelmet, {
+    contentSecurityPolicy: isProduction,
+  });
 
   /* ********************************************************************** */
   /* Rate limiting                                                          */
@@ -135,19 +164,23 @@ export async function createServerWith(routesPath: string) {
   // Basic rate limiting to mitigate brute-force and abuse.
   // This is intentionally simple and should be tuned per deployment.
   if (isProduction) {
-    const limiter = rateLimit({
-      windowMs: 15 * 60 * 1000, // 15 minutes
-      limit: 100, // max 100 requests per window
+    await app.register(fastifyRateLimit, {
+      timeWindow: 15 * 60 * 1000, // 15 minutes
+      max: 100, // max 100 requests per window
     });
-
-    app.use(limiter);
   }
 
   /* ********************************************************************** */
   /* Static file serving                                                    */
   /* ********************************************************************** */
 
-  app.use("/uploads", express.static("./data/uploads"));
+  // @fastify/static requires an existing root directory.
+  fs.mkdirSync("./data/uploads", { recursive: true });
+
+  await app.register(fastifyStatic, {
+    root: path.resolve("./data/uploads"),
+    prefix: "/uploads/",
+  });
 
   /* ********************************************************************** */
   /* API routes                                                             */
@@ -155,7 +188,7 @@ export async function createServerWith(routesPath: string) {
 
   // All API routes are mounted here.
   // They are isolated, stateless, and independently testable.
-  app.use((await import(routesPath)).default);
+  await app.register((await import(routesPath)).default);
 
   /* ********************************************************************** */
   /* Frontend / SSR configuration                                           */
@@ -192,17 +225,18 @@ export async function createServerWith(routesPath: string) {
     return { template, render };
   };
 
-  // Catch-all handler for SSR
-  app.use(/(.*)/, async (req, res, next) => {
-    const url = req.originalUrl;
+  // Catch-all handler for SSR:
+  // every request that did not match an API route nor a static asset.
+  app.setNotFoundHandler(async (request, reply) => {
+    const url = request.url;
     const base = `http://localhost:${port}${url}`;
-    const cookie = req.headers.cookie;
+    const cookie = request.headers.cookie;
 
-    fetchBaseStorage.run({ base, cookie }, async () => {
+    return fetchBaseStorage.run({ base, cookie }, async () => {
       try {
         // Prevent caching of the HTML page
         // SSR is auth-aware and must not be cached
-        res.set("Cache-Control", "private, no-store");
+        reply.header("Cache-Control", "private, no-store");
 
         /* **************************************************************** */
         /* Render application                                               */
@@ -214,54 +248,19 @@ export async function createServerWith(routesPath: string) {
         // - Rendering the React app
         // - Injecting HTML into the template
         // - Sending the response
-        await render(template, req, res);
+        await render(template, request, reply);
+
+        return reply;
       } catch (err) {
         // DEV EXPERIENCE:
         // Let Vite rewrite stack traces so they map to source files.
         if (err instanceof Error) maybeVite?.ssrFixStacktrace(err);
-        next(err);
+        throw err;
       }
     });
   });
 
-  /* ********************************************************************** */
-  /* Error handling                                                         */
-  /* ********************************************************************** */
-
-  /*
-    Error logging middleware:
-    Logs errors for debugging, then passes them to the error response handler.
-  */
-  const logErrors: ErrorRequestHandler = (err, req, _res, next) => {
-    console.error(err);
-    console.error("on req:", req.method, req.path);
-
-    next(err);
-  };
-
-  /*
-    Final error handler:
-    Sends a structured JSON response instead of Express's default HTML page.
-    Stack traces are hidden in production to avoid leaking implementation details.
-  */
-  const sendErrors: ErrorRequestHandler = (err, _req, res, _next) => {
-    if (err instanceof MulterError && err.code === "LIMIT_FILE_SIZE") {
-      res.sendStatus(400);
-      return;
-    }
-
-    const status = err.status ?? err.statusCode ?? 500;
-
-    res.status(status).json({
-      message: err.message ?? "Internal Server Error",
-      ...(isProduction ? {} : { stack: err.stack }),
-    });
-  };
-
-  app.use(logErrors);
-  app.use(sendErrors);
-
-  return httpServer;
+  return app;
 }
 
 /* ************************************************************************ */
@@ -275,6 +274,7 @@ export async function createServerWith(routesPath: string) {
  * - Production: generated dist/client/index.html
  */
 import fs from "node:fs";
+import path from "node:path";
 
 function readIndexHtml() {
   return fs.readFileSync(
@@ -292,20 +292,24 @@ function readIndexHtml() {
  *
  * - Development:
  *   - Create a Vite dev server in middleware mode
- *   - Let Express control routing
+ *   - Let Fastify control routing
  */
-import type { Express } from "express";
+import type http from "node:http";
+import fastifyCompress from "@fastify/compress";
+import fastifyMiddie from "@fastify/middie";
+import type { FastifyInstance } from "fastify";
 import { createServer as createViteServer } from "vite";
 
-async function configure(app: Express, httpServer: http.Server) {
+async function configure(app: FastifyInstance, httpServer: http.Server) {
   if (isProduction) {
-    const compression = (await import("compression")).default;
-
-    app.use(compression());
-    app.use(express.static("./dist/client", { extensions: [] }));
+    await app.register(fastifyCompress);
+    await app.register(fastifyStatic, {
+      root: path.resolve("./dist/client"),
+      decorateReply: false,
+    });
   } else {
     // Create Vite server in middleware mode.
-    // Express remains the main HTTP server.
+    // Fastify remains the main HTTP server.
     const vite = await createViteServer({
       server: {
         middlewareMode: true,
@@ -314,9 +318,13 @@ async function configure(app: Express, httpServer: http.Server) {
       appType: "custom",
     });
 
+    // @fastify/middie brings Connect-style middleware support to Fastify,
+    // which is exactly what vite.middlewares is.
+    //
     // NOTE:
     // vite.middlewares remains stable across restarts,
     // even if Vite internally reloads plugins or config.
+    await app.register(fastifyMiddie);
     app.use(vite.middlewares);
 
     return vite;

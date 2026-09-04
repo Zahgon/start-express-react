@@ -1,0 +1,136 @@
+14d13
+< content-type: text/plain; charset=utf-8.
+17c16
+< body: Unauthorized
+---
+> body: 
+23d21
+< content-type: text/plain; charset=utf-8.
+26c24
+< body: Unauthorized
+---
+> body: 
+57d54
+< content-type: text/plain; charset=utf-8.
+60c57
+< body: Bad Request
+---
+> body: 
+64d60
+< content-type: text/plain; charset=utf-8.
+67c63
+< body: Range Not Satisfiable
+---
+> body: 
+70d65
+< content-type: text/plain; charset=utf-8.
+73c68
+< body: Bad Request
+---
+> body: 
+80d74
+< content-type: text/plain; charset=utf-8.
+83c77
+< body: Not Found
+---
+> body: 
+87d80
+< content-type: text/plain; charset=utf-8.
+90c83
+< body: Unauthorized
+---
+> body: 
+92d84
+< content-type: text/plain; charset=utf-8.
+95c87
+< body: Unauthorized
+---
+> body: 
+97d88
+< content-type: text/plain; charset=utf-8.
+100c91
+< body: Unauthorized
+---
+> body: 
+104d94
+< content-type: text/plain; charset=utf-8.
+107c97
+< body: Unauthorized
+---
+> body: 
+109d98
+< content-type: text/plain; charset=utf-8.
+112c101
+< body: Unauthorized
+---
+> body: 
+114d102
+< content-type: text/plain; charset=utf-8.
+117c105
+< body: Unauthorized
+---
+> body: 
+119d106
+< content-type: text/plain; charset=utf-8.
+122c109
+< body: Unauthorized
+---
+> body: 
+126d112
+< content-type: text/plain; charset=utf-8.
+129c115
+< body: Bad Request
+---
+> body: 
+131d116
+< content-type: text/plain; charset=utf-8.
+134c119
+< body: Bad Request
+---
+> body: 
+136d120
+< content-type: text/plain; charset=utf-8.
+139c123
+< body: Unauthorized
+---
+> body: 
+151d134
+< content-type: text/plain; charset=utf-8.
+154c137
+< body: Unauthorized
+---
+> body: 
+209d191
+< content-type: text/plain; charset=utf-8.
+213c195
+< body: Not Found
+---
+> body: 
+225d206
+< content-type: text/plain; charset=utf-8.
+228c209
+< body: Not Found
+---
+> body: 
+242c223
+< body: {"message":"Invalid file type: text/plain. Allowed types: image/jpeg, image/png, image/webp, image/gif","stack":"Error: Invalid file type: text/plain. Allowed types: image/jpeg, image/png, image/webp, image/gif\n    at fileFilter (/Users/macbookpro/Downloads/migratiopn_script/sxr-baseline/src/express/helpers/upload.ts:64:52)\n    at wrappedFileFilter (/Users/macbookpro/Downloads/migratiopn_script/
+---
+> body: {"message":"Invalid file type: text/plain. Allowed types: image/jpeg, image/png, image/webp, image/gif","stack":"Error: Invalid file type: text/plain. Allowed types: image/jpeg, image/png, image/webp, image/gif\n    at Object.<anonymous> (/Users/macbookpro/Downloads/migratiopn_script/start-express-react/src/fastify/helpers/upload.ts:108:54)\n    at process.processTicksAndRejections (node:internal/
+244c225
+< content-type: text/plain; charset=utf-8.
+---
+> content-type: application/json; charset=utf-8.
+248c229
+< body: Bad Request
+---
+> body: {"message":"File too large. Maximum allowed size: 2097152 bytes","stack":"<STACK>"}
+373c354
+< set-cookie: __host-auth=; path=/; httponly; secure; samesite=strict.
+---
+> set-cookie: __host-auth=; max-age=0; path=/; httponly; secure; samesite=strict.
+383d363
+< content-type: text/plain; charset=utf-8.
+386c366
+< body: Unauthorized
+---
+> body: 

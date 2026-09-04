@@ -1,6 +1,6 @@
 /*
   Purpose:
-  Centralize all authentication-related actions and middleware.
+  Centralize all authentication-related actions and hooks.
 
   This file handles:
   - User authentication (magic link)
@@ -17,7 +17,8 @@
 */
 
 import crypto from "node:crypto";
-import type { CookieOptions, RequestHandler } from "express";
+import type { CookieSerializeOptions } from "@fastify/cookie";
+import type { preHandlerAsyncHookHandler, RouteHandler } from "fastify";
 import jwt, { type JwtPayload } from "jsonwebtoken";
 import nodemailer from "nodemailer";
 
@@ -26,14 +27,12 @@ import userRepository from "../user/userRepository";
 import authRepository from "./authRepository";
 
 /*
-  Extend Express Request to carry authenticated user data.
+  Extend FastifyRequest to carry authenticated user data.
   This is populated exclusively by verifyAccessToken.
 */
-declare global {
-  namespace Express {
-    interface Request {
-      me: User;
-    }
+declare module "fastify" {
+  interface FastifyRequest {
+    me: User;
   }
 }
 
@@ -44,18 +43,31 @@ declare global {
 const magicLinkTimeout = 15 * 60 * 1000; // 15 minutes
 
 /*
+  Lifetime of an authentication session.
+
+  NOTE:
+  Fastify cookies express `maxAge` in seconds (Set-Cookie semantics), while
+  jsonwebtoken expects a number of seconds for `expiresIn`. The value handed to
+  `expiresIn` is deliberately kept identical to the Express implementation, so
+  the migration does not silently change token lifetimes.
+*/
+const sessionMaxAge = 7 * 24 * 60 * 60 * 1000; // 7 days, in milliseconds
+
+/*
   Cookie configuration for authentication token.
 
   Notes:
   - HttpOnly: inaccessible to JavaScript
   - SameSite=strict: mitigates CSRF
   - Secure: HTTPS only
+  - Path=/: required by the "__Host-" prefix
 */
-const cookieOptions: CookieOptions = {
+const cookieOptions: CookieSerializeOptions = {
   httpOnly: true,
   secure: true,
   sameSite: "strict",
-  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  path: "/",
+  maxAge: sessionMaxAge / 1000, // seconds
 };
 
 /*
@@ -71,7 +83,7 @@ class TokenSigner<Payload extends JwtPayload | string = JwtPayload> {
   }
 
   signSession(payload: Payload): string {
-    return jwt.sign(payload, this.#secret, { expiresIn: cookieOptions.maxAge });
+    return jwt.sign(payload, this.#secret, { expiresIn: sessionMaxAge });
   }
 
   verify(token: string): Payload {
@@ -98,6 +110,18 @@ const transporter = serverEnv.SMTP_URL
 const trustedBaseUrl = serverEnv.APP_BASE_URL.replace(/\/+$/, "");
 
 /* ************************************************************************ */
+/* Route generics                                                           */
+/* ************************************************************************ */
+
+/*
+  Bodies are intentionally loose: these two endpoints validate their own input
+  and answer 400 themselves, so they must be able to observe a missing or
+  malformed payload.
+*/
+export type MagicLinkRoute = { Body: { email?: unknown } | undefined };
+export type VerifyRoute = { Body: { token?: unknown } | undefined };
+
+/* ************************************************************************ */
 /* Actions                                                                  */
 /* ************************************************************************ */
 
@@ -107,11 +131,11 @@ const trustedBaseUrl = serverEnv.APP_BASE_URL.replace(/\/+$/, "");
   Response:
   - 204 on success
 */
-const sendMagicLink: RequestHandler = async (req, res) => {
-  const { email } = req.body;
+const sendMagicLink: RouteHandler<MagicLinkRoute> = async (request, reply) => {
+  const email = request.body?.email;
 
   if (!email || typeof email !== "string") {
-    res.sendStatus(400);
+    reply.code(400).send();
     return;
   }
 
@@ -142,7 +166,7 @@ const sendMagicLink: RequestHandler = async (req, res) => {
     console.info("----------------------------------------------------------");
   }
 
-  res.sendStatus(204);
+  reply.code(204).send();
 };
 
 /* ************************************************************************ */
@@ -154,11 +178,11 @@ const sendMagicLink: RequestHandler = async (req, res) => {
   - 201 with user
   - 401 on error
 */
-const verifyMagicLink: RequestHandler = (req, res) => {
-  const { token } = req.body;
+const verifyMagicLink: RouteHandler<VerifyRoute> = async (request, reply) => {
+  const token = request.body?.token;
 
   if (!token || typeof token !== "string") {
-    res.sendStatus(400);
+    reply.code(400).send();
     return;
   }
 
@@ -189,11 +213,11 @@ const verifyMagicLink: RequestHandler = (req, res) => {
 
     const sessionToken = tokenSigner.signSession({ sub: user.id.toString() });
 
-    res.cookie("__Host-auth", sessionToken, cookieOptions);
+    reply.setCookie("__Host-auth", sessionToken, cookieOptions);
 
-    res.status(201).json(user);
+    reply.code(201).send(user);
   } catch {
-    res.sendStatus(401);
+    reply.code(401).send();
   }
 };
 
@@ -205,28 +229,31 @@ const verifyMagicLink: RequestHandler = (req, res) => {
   Notes:
   - Stateless logout: token invalidation relies on expiration
 */
-const destroyAccessToken: RequestHandler = (_req, res) => {
-  res.clearCookie("__Host-auth", cookieOptions);
+const destroyAccessToken: RouteHandler = async (_request, reply) => {
+  reply.clearCookie("__Host-auth", cookieOptions);
 
-  res.sendStatus(204);
+  reply.code(204).send();
 };
 
 /* ************************************************************************ */
-/* Middleware                                                               */
+/* Hooks                                                                    */
 /* ************************************************************************ */
 
 /*
-  Verify the access token from cookies and attach the user to req.me.
+  Verify the access token from cookies and attach the user to request.me.
 
   Preconditions:
-  - Cookie parser has already run
+  - @fastify/cookie has already parsed the cookies
 
   Response:
   - 401 if token is missing or invalid
 */
-const verifyAccessToken: RequestHandler = (req, res, next) => {
+const verifyAccessToken: preHandlerAsyncHookHandler = async (
+  request,
+  reply,
+) => {
   try {
-    const token = req.cookies["__Host-auth"];
+    const token = request.cookies["__Host-auth"];
 
     if (token == null) {
       throw new Error("Access token is missing in cookies");
@@ -242,13 +269,12 @@ const verifyAccessToken: RequestHandler = (req, res, next) => {
 
     // Refresh cookie (extends expiration)
     const freshToken = tokenSigner.signSession({ sub: me.id.toString() });
-    res.cookie("__Host-auth", freshToken, cookieOptions);
+    reply.setCookie("__Host-auth", freshToken, cookieOptions);
 
-    req.me = me;
-
-    next();
+    request.me = me;
   } catch {
-    res.sendStatus(401);
+    reply.code(401).send();
+    return reply;
   }
 };
 

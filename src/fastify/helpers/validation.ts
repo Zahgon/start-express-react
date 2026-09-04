@@ -1,12 +1,12 @@
 /*
   Purpose:
-  Provide shared utilities for Express modules.
+  Provide shared utilities for Fastify modules.
 
   Related docs:
   - https://zod.dev/
 */
 
-import type { Request, RequestHandler } from "express";
+import type { FastifyRequest, preHandlerAsyncHookHandler } from "fastify";
 import type { ZodObject } from "zod";
 import type { $ZodIssue as ZodIssue } from "zod/v4/core";
 
@@ -24,7 +24,7 @@ export type ValidationTargets = {
 };
 
 export type ValidatorOptions = {
-  inject?: (req: Request) => Record<string, unknown>;
+  inject?: (request: FastifyRequest) => Record<string, unknown>;
 };
 
 /* ************************************************************************ */
@@ -36,53 +36,51 @@ export type ValidatorOptions = {
   - Accepts a multi-target object ({ body, query, params })
   - Replaces validated request targets with parsed (typed, sanitized) results
   - Returns 400 with detailed Zod issues on validation failure
-  - Supports optional server-side injection into req.body via options.inject
+  - Supports optional server-side injection into request.body via options.inject
 */
 export const createValidator = (
   targets: ValidationTargets,
   options: ValidatorOptions = {},
-): RequestHandler => {
-  return (req, res, next) => {
+): preHandlerAsyncHookHandler => {
+  return async (request, reply) => {
     const issues: ZodIssue[] = [];
 
     if (targets.params) {
-      const parsed = targets.params.safeParse(req.params);
+      const parsed = targets.params.safeParse(request.params);
       if (!parsed.success) {
         issues.push(...parsed.error.issues);
       } else {
-        req.params = parsed.data as typeof req.params;
+        request.params = parsed.data;
       }
     }
 
     if (targets.query) {
-      const parsed = targets.query.safeParse(req.query);
+      const parsed = targets.query.safeParse(request.query);
       if (!parsed.success) {
         issues.push(...parsed.error.issues);
       } else {
-        req.query = parsed.data as typeof req.query;
+        request.query = parsed.data;
       }
     }
 
     if (targets.body) {
-      const parsed = targets.body.safeParse(req.body);
+      const parsed = targets.body.safeParse(request.body);
       if (!parsed.success) {
         issues.push(...parsed.error.issues);
       } else {
         const { inject } = options;
 
         if (inject) {
-          req.body = { ...parsed.data, ...inject(req) };
+          request.body = { ...parsed.data, ...inject(request) };
         } else {
-          req.body = parsed.data;
+          request.body = parsed.data;
         }
       }
     }
 
     if (issues.length > 0) {
-      res.status(400).json(issues);
-      return;
+      reply.code(400).send(issues);
+      return reply;
     }
-
-    next();
   };
 };

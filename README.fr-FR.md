@@ -18,7 +18,7 @@
 [![Use this template](https://img.shields.io/badge/Démarrer-Use_this_template-2ea44f?style=for-the-badge)](https://github.com/rocambille/start-express-react/generate)
 [![Read the manual](https://img.shields.io/badge/Apprendre-Read_the_manual-blue?style=for-the-badge)](https://github.com/rocambille/start-express-react/wiki/home-fr-FR)
 
-**Un framework pédagogique Express + React conçu pour la clarté, le prototypage et la co-création avec l'IA.**
+**Un framework pédagogique Fastify + React conçu pour la clarté, le prototypage et la co-création avec l'IA.**
 
 </div>
 
@@ -26,14 +26,14 @@
 
 StartER est un framework open-source pour **apprendre** et **construire** des applications web fullstack. Il fournit :
 
-* Backend Express
+* Backend Fastify
 * Frontend React
 * Types et contrats partagés pour la vérification de l'API
 * Une architecture "sans magie" où vous comprenez chaque ligne
 
 Que vous soyez étudiant·e, en reconversion, ou développeur·se expérimenté·e qui prototype une nouvelle idée, StartER vous offre une base solide et lisible.
 
-Si vous recherchez un "starter Express + React" ou un "boilerplate Node React", ce dépôt est un template pratique.
+Si vous recherchez un "starter Fastify + React" ou un "boilerplate Node React", ce dépôt est un template pratique.
 
 ## 🧠 Conçu pour l'ère de l'IA
 
@@ -65,7 +65,7 @@ npm run dev
 Ne laissez pas l'IA "deviner" votre architecture. Utilisez `make:clone` pour répliquer la logique fonctionnelle.
 
 ```bash
-npm run make:clone -- src/express/modules/item src/express/modules/task Item Task
+npm run make:clone -- src/fastify/modules/item src/fastify/modules/task Item Task
 ```
 Cela garantit la cohérence en clonant vos modèles de code *réels*. Votre agent IA reste ainsi concentré et précis.
 
@@ -85,11 +85,11 @@ Vous définissez le comportement de l'API dans le dossier `tests/contracts/` : u
 
 * **Schémas comme cource unique de Vvrité :** des schémas Zod centralisés dans `*Schemas.ts` qui valident les entrées HTTP et analysent les sorties de la base de données pour éviter les bugs silencieux.
 
-* **Stack transparente :** Express 5 + React 19. Aucune boîte noire. Vous comprenez chaque ligne.
+* **Stack transparente :** Fastify 5 + React 19. Aucune boîte noire. Vous comprenez chaque ligne.
 
 ## 💻 Stack technique
 
-* **Backend** : Node.js, Express 5, Zod (validation)
+* **Backend** : Node.js, Fastify 5, Zod (validation)
 * **Frontend** : React 19, React Router, Vite, Pico CSS
 * **Database** : SQLite (zero-config, API synchrone)
 * **Tooling** : TypeScript, Biome, Vitest, Docker

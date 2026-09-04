@@ -150,9 +150,9 @@ describe("make-clone.ts", () => {
     expect(unrelatedContent).toBe("export class Unrelated { apple = 10; }\n");
   });
 
-  it("clones to src/express/modules and logs checklist instructions", async () => {
+  it("clones to src/fastify/modules and logs checklist instructions", async () => {
     const src = path.join(tmpDir, "src", "cherry.ts");
-    const dest = path.join(tmpDir, "src", "express", "modules", "berry.ts");
+    const dest = path.join(tmpDir, "src", "fastify", "modules", "berry.ts");
 
     await fs.ensureDir(path.dirname(src));
     await fs.writeFile(src, "export const cherry = 'sweet';\n");
@@ -161,7 +161,7 @@ describe("make-clone.ts", () => {
 
     expect(consoleSpy).toHaveBeenCalledWith(
       expect.stringMatching(
-        /Register the Express module in src\/express\/routes.ts/,
+        /Register the Fastify plugin in src\/fastify\/routes.ts/,
       ),
     );
   });

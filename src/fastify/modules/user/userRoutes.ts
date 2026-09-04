@@ -10,16 +10,14 @@
 
   Related docs:
   - https://restfulapi.net/resource-naming/
-  - https://expressjs.com/en/guide/routing.html
+  - https://fastify.dev/docs/latest/Reference/Routes/
 */
 
 /* ************************************************************************ */
-/* Router setup                                                             */
+/* Plugin setup                                                             */
 /* ************************************************************************ */
 
-import { Router } from "express";
-
-const router = Router();
+import type { FastifyPluginAsync } from "fastify";
 
 /* ************************************************************************ */
 /* Dependencies                                                             */
@@ -33,8 +31,8 @@ const router = Router();
 import { createUploader } from "../../helpers/upload";
 /*
   authActions:
-  - verifyAccessToken injects `req.me`
-  - `req.me` contains the authenticated user
+  - verifyAccessToken injects `request.me`
+  - `request.me` contains the authenticated user
 */
 import authActions from "../auth/authActions";
 /*
@@ -76,21 +74,42 @@ const ME_AVATAR_PATH = "/api/users/me/avatar";
   - Authentication is enforced
   - Users can only access their own data
 */
-router
-  .route(ME_PATH)
-  .all(authActions.verifyAccessToken)
-  .get(userActions.readMe)
-  .put(userValidators.editMe, userActions.editMe)
-  .delete(userActions.destroyMe);
+const userRoutes: FastifyPluginAsync = async (fastify) => {
+  fastify.get(
+    ME_PATH,
+    { preHandler: [authActions.verifyAccessToken] },
+    userActions.readMe,
+  );
+  fastify.put<{ Body: Omit<User, "avatar_url"> }>(
+    ME_PATH,
+    { preHandler: [authActions.verifyAccessToken, userValidators.editMe] },
+    userActions.editMe,
+  );
+  fastify.delete(
+    ME_PATH,
+    { preHandler: [authActions.verifyAccessToken] },
+    userActions.destroyMe,
+  );
 
-router
-  .route(ME_AVATAR_PATH)
-  .all(authActions.verifyAccessToken)
-  .post(avatarUploader.single("avatar"), userActions.uploadMeAvatar)
-  .delete(userActions.deleteMeAvatar);
+  fastify.post(
+    ME_AVATAR_PATH,
+    {
+      preHandler: [
+        authActions.verifyAccessToken,
+        avatarUploader.single("avatar"),
+      ],
+    },
+    userActions.uploadMeAvatar,
+  );
+  fastify.delete(
+    ME_AVATAR_PATH,
+    { preHandler: [authActions.verifyAccessToken] },
+    userActions.deleteMeAvatar,
+  );
+};
 
 /* ************************************************************************ */
 /* Export                                                                   */
 /* ************************************************************************ */
 
-export default router;
+export default userRoutes;

@@ -4,5 +4,5 @@ type Json = string | number | bigint | boolean | null | JsonObject | JsonArray;
 type JsonObject = { [key: string]: Json };
 type JsonArray = Json[];
 
-type Item = import("../express/modules/item/itemSchemas").Item;
-type User = import("../express/modules/user/userSchemas").User;
+type Item = import("../fastify/modules/item/itemSchemas").Item;
+type User = import("../fastify/modules/user/userSchemas").User;

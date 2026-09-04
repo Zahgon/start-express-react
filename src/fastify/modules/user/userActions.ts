@@ -8,7 +8,7 @@
   - Assumes all upstream guarantees are already satisfied
 
   What this file intentionally does NOT do:
-  - No authentication (handled by auth middleware)
+  - No authentication (handled by the auth preHandler)
   - No authorization (handled by route-level checks)
   - No input validation (handled by validators)
   - No database logic (handled by repositories)
@@ -19,7 +19,7 @@
   - Handlers remain thin to keep behavior easy to audit
 */
 
-import type { RequestHandler } from "express";
+import type { RouteHandler } from "fastify";
 
 import { deleteUploadedFile } from "../../helpers/upload";
 import userRepository from "./userRepository";
@@ -34,8 +34,8 @@ import userRepository from "./userRepository";
   Preconditions:
   - verifyAccessToken has run successfully
 */
-const readMe: RequestHandler = (req, res) => {
-  res.json(req.me);
+const readMe: RouteHandler = async (request, reply) => {
+  reply.send(request.me);
 };
 
 /* ************************************************************************ */
@@ -45,15 +45,18 @@ const readMe: RequestHandler = (req, res) => {
 
   Preconditions:
   - User is authenticated
-  - req.body has been validated and sanitized
+  - request.body has been validated and sanitized
 
   Response:
   - 204 No Content on success
 */
-const editMe: RequestHandler = (req, res) => {
-  userRepository.update(req.body);
+const editMe: RouteHandler<{ Body: Omit<User, "avatar_url"> }> = async (
+  request,
+  reply,
+) => {
+  userRepository.update(request.body);
 
-  res.sendStatus(204);
+  reply.code(204).send();
 };
 
 /* ************************************************************************ */
@@ -67,10 +70,10 @@ const editMe: RequestHandler = (req, res) => {
   Response:
   - 204 No Content
 */
-const destroyMe: RequestHandler = (req, res) => {
-  userRepository.softDelete(req.me.id);
+const destroyMe: RouteHandler = async (request, reply) => {
+  userRepository.softDelete(request.me.id);
 
-  res.sendStatus(204);
+  reply.code(204).send();
 };
 
 /* ************************************************************************ */
@@ -80,21 +83,21 @@ const destroyMe: RequestHandler = (req, res) => {
 
   Preconditions:
   - User is authenticated
-  - Multer middleware has processed and attached req.file
+  - The uploader preHandler has processed and attached request.uploadedFile
 */
-const uploadMeAvatar: RequestHandler = (req, res) => {
-  if (!req.file) {
-    res.status(400).json({ message: "No file attached" });
+const uploadMeAvatar: RouteHandler = async (request, reply) => {
+  if (!request.uploadedFile) {
+    reply.code(400).send({ message: "No file attached" });
     return;
   }
 
-  const oldAvatarUrl = req.me.avatar_url;
-  const newAvatarUrl = `/uploads/avatars/${req.file.filename}`;
+  const oldAvatarUrl = request.me.avatar_url;
+  const newAvatarUrl = `/uploads/avatars/${request.uploadedFile.filename}`;
 
-  userRepository.updateAvatar(req.me.id, newAvatarUrl);
+  userRepository.updateAvatar(request.me.id, newAvatarUrl);
   deleteUploadedFile(oldAvatarUrl);
 
-  res.status(201).json({ avatar_url: newAvatarUrl });
+  reply.code(201).send({ avatar_url: newAvatarUrl });
 };
 
 /* ************************************************************************ */
@@ -105,13 +108,13 @@ const uploadMeAvatar: RequestHandler = (req, res) => {
   Preconditions:
   - User is authenticated
 */
-const deleteMeAvatar: RequestHandler = (req, res) => {
-  const oldAvatarUrl = req.me.avatar_url;
+const deleteMeAvatar: RouteHandler = async (request, reply) => {
+  const oldAvatarUrl = request.me.avatar_url;
 
-  userRepository.updateAvatar(req.me.id, null);
+  userRepository.updateAvatar(request.me.id, null);
   deleteUploadedFile(oldAvatarUrl);
 
-  res.sendStatus(204);
+  reply.code(204).send();
 };
 
 /* ************************************************************************ */

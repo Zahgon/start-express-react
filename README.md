@@ -18,21 +18,21 @@
 [![Use this template](https://img.shields.io/badge/Start-Use_this_template-2ea44f?style=for-the-badge)](https://github.com/rocambille/start-express-react/generate)
 [![Read the manual](https://img.shields.io/badge/Learn-Read_the_manual-blue?style=for-the-badge)](https://github.com/rocambille/start-express-react/wiki)
 
-**A pedagogical Express + React framework designed for clarity, prototyping, and AI co-creation.**
+**A pedagogical Fastify + React framework designed for clarity, prototyping, and AI co-creation.**
 
 </div>
 
 ## 📚 Why StartER?
 
 StartER is an open-source framework for **learning** and **building** fullstack web applications. It provides:
-- Express backend
+- Fastify backend
 - React frontend
 - Shared types and contracts for API verification
 - A "Zero-Magic" architecture where you understand every line
 
 Whether you're a student, a bootcamp graduate, or an experienced developer prototyping a new idea, StartER gives you a solid, readable foundation.
 
-If you are looking for an "Express + React starter" or "Node React boilerplate", this repository is a practical template.
+If you are looking for a "Fastify + React starter" or "Node React boilerplate", this repository is a practical template.
 
 ## 🧠 Built for the AI era
 
@@ -62,7 +62,7 @@ npm run dev
 
 Don't let AI "guess" your architecture. Use `make:clone` to replicate working logic.
 ```bash
-npm run make:clone -- src/express/modules/item src/express/modules/task Item Task
+npm run make:clone -- src/fastify/modules/item src/fastify/modules/task Item Task
 ```
 This enforces consistency by cloning your *actual* code patterns. This keeps your AI agent focused and accurate.
 
@@ -75,10 +75,10 @@ You define API behavior in the `tests/contracts/` directory: a central, declarat
 ### 🔍 Zero-magic simplicity
 *   **Sync SQLite:** direct data access that AI can read and write without `async`/`await` confusion.
 *   **Single Source of Truth Schemas:** Zod schemas in `*Schemas.ts` validate HTTP inputs at the edge and parse database entity outputs. This prevents silent runtime bugs.
-*   **Transparent stack:** Express 5 + React 19. No black boxes. You understand every line.
+*   **Transparent stack:** Fastify 5 + React 19. No black boxes. You understand every line.
 
 ## 💻 Tech stack
-*   **Backend**: Node.js, Express 5, Zod (validation)
+*   **Backend**: Node.js, Fastify 5, Zod (validation)
 *   **Frontend**: React 19, React Router, Vite, Pico CSS
 *   **Database**: SQLite (zero-config, sync API)
 *   **Tooling**: TypeScript, Biome, Vitest, Docker

@@ -2,7 +2,8 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import express, { type ErrorRequestHandler } from "express";
+import type { FastifyError } from "fastify";
+import Fastify from "fastify";
 import jwt, { type JwtPayload } from "jsonwebtoken";
 import supertest from "supertest";
 
@@ -141,7 +142,7 @@ vi.mock("nodemailer", async (importActual) => {
 // Helpers
 // -------------------------
 
-import { deleteUploadedFile } from "../../src/express/helpers/upload";
+import { deleteUploadedFile } from "../../src/fastify/helpers/upload";
 import contracts from "../contracts";
 
 export const setupMocks = () => {
@@ -164,44 +165,39 @@ export const requestValue = (
 };
 
 // -------------------------
-// Express app for tests
+// Fastify app for tests
 // -------------------------
-import routes from "../../src/express/routes";
+import routes from "../../src/fastify/routes";
 
-const app = express();
-app.use(routes);
+const app = Fastify();
 
-/*
-  Error logging middleware:
-  Logs errors for debugging, then passes them to the error response handler.
-*/
-const logErrors: ErrorRequestHandler = (err, req, _res, next) => {
-  if (err.status === 500) {
-    console.error(err);
-    console.error("on req:", req.method, req.path);
-  }
-
-  next(err);
-};
+app.register(routes);
 
 /*
-  Final error handler:
-  Sends a structured JSON response instead of Express's default HTML page.
-  Stack traces are hidden in production to avoid leaking implementation details.
+  Error handler:
+  Logs unexpected errors for debugging, then sends a structured JSON response
+  instead of Fastify's default payload.
 */
-const sendErrors: ErrorRequestHandler = (err, _req, res, _next) => {
-  const status = err.status ?? err.statusCode ?? 500;
+app.setErrorHandler<FastifyError & { status?: number }>(
+  (err, request, reply) => {
+    if (err.status === 500) {
+      console.error(err);
+      console.error("on req:", request.method, request.url);
+    }
 
-  res.status(status).json({
-    message: err.message ?? "Internal Server Error",
-  });
-};
+    const status = err.status ?? err.statusCode ?? 500;
 
-app.use(logErrors);
-app.use(sendErrors);
+    reply.code(status).send({
+      message: err.message ?? "Internal Server Error",
+    });
+  },
+);
+
+// Fastify boots asynchronously: plugins must be loaded before the first request
+await app.ready();
 
 // Wrapper for supertest
-const api = supertest(app);
+const api = supertest(app.server);
 
 // Helper to check a test case
 export const check = async (test: Test, caseName: keyof Test["cases"]) => {

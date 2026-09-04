@@ -179,7 +179,7 @@ export async function main(argv: string[] = process.argv) {
   }
 
   // Provide contextual feedback via a pedagogical checklist
-  const isExpress = destPath.includes(path.normalize("src/express/modules"));
+  const isFastify = destPath.includes(path.normalize("src/fastify/modules"));
   const isReact = destPath.includes(path.normalize("src/react/components"));
 
   const singular = newName[0].toUpperCase() + newName.slice(1);
@@ -195,12 +195,12 @@ export async function main(argv: string[] = process.argv) {
 
 [ ] Re-export the "${singular}" type in src/types/index.d.ts from "./${newName.toLowerCase()}Schemas"`);
 
-  if (isExpress) {
-    console.info(`[ ] Register the Express module in src/express/routes.ts:
+  if (isFastify) {
+    console.info(`[ ] Register the Fastify plugin in src/fastify/routes.ts:
 
       import ${newName.toLowerCase()}Routes from "./modules/${newName.toLowerCase()}/${newName.toLowerCase()}Routes";
 
-      router.use(${newName.toLowerCase()}Routes);
+      await fastify.register(${newName.toLowerCase()}Routes);
 `);
   }
 

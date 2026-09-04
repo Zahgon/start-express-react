@@ -10,7 +10,7 @@
 
   Design notes:
   - This file runs only in Node.js
-  - It does not serve HTTP directly; Express owns the response lifecycle
+  - It does not serve HTTP directly; Fastify owns the response lifecycle
   - It remains fully stateless: no session, no global request data
 
   Related docs:
@@ -18,8 +18,9 @@
   - https://react.dev/reference/react-dom/server/renderToPipeableStream
 */
 
-import { Transform } from "node:stream";
-import type { Request, Response } from "express";
+import { PassThrough, Readable, Transform } from "node:stream";
+import type { ReadableStream } from "node:stream/web";
+import type { FastifyReply, FastifyRequest } from "fastify";
 import { StrictMode } from "react";
 import { renderToPipeableStream } from "react-dom/server";
 import {
@@ -47,22 +48,26 @@ const { query, dataRoutes } = createStaticHandler(routes);
 /*                             SSR render entry                             */
 /* ************************************************************************ */
 
-export const render = async (template: string, req: Request, res: Response) => {
+export const render = async (
+  template: string,
+  request: FastifyRequest,
+  reply: FastifyReply,
+) => {
   /* ********************************************************************** */
   /* 1. Resolve routing context (loaders + actions)                         */
   /* ********************************************************************** */
 
   /*
     The request passed to React Router must be a WHATWG Request,
-    not an Express request.
+    not a Fastify request.
 
     The URL must be absolute for loaders relying on fetch().
   */
   const whatwgRequest = new Request(
-    `${req.protocol}://${req.get("host")}${req.originalUrl}`,
+    `${request.protocol}://${request.host}${request.url}`,
   );
   // Forward headers (including cookies)
-  for (const [key, value] of Object.entries(req.headers)) {
+  for (const [key, value] of Object.entries(request.headers)) {
     if (value != null) {
       whatwgRequest.headers.set(
         key,
@@ -82,14 +87,20 @@ export const render = async (template: string, req: Request, res: Response) => {
     - error responses
     - short-circuited flows
 
-    In that case, forward it as-is to Express.
+    In that case, forward it as-is to Fastify.
   */
   if (context instanceof Response) {
     for (const [key, value] of context.headers.entries()) {
-      res.set(key, value);
+      reply.header(key, value);
     }
 
-    return res.status(context.status).end(context.body);
+    return reply
+      .code(context.status)
+      .send(
+        context.body == null
+          ? undefined
+          : Readable.fromWeb(context.body as ReadableStream),
+      );
   }
 
   /* ********************************************************************** */
@@ -108,14 +119,14 @@ export const render = async (template: string, req: Request, res: Response) => {
     const actionHeaders = context.actionHeaders[leaf.route.id];
     if (actionHeaders) {
       for (const [key, value] of actionHeaders.entries()) {
-        res.set(key, value);
+        reply.header(key, value);
       }
     }
 
     const loaderHeaders = context.loaderHeaders[leaf.route.id];
     if (loaderHeaders) {
       for (const [key, value] of loaderHeaders.entries()) {
-        res.set(key, value);
+        reply.header(key, value);
       }
     }
   }
@@ -159,18 +170,25 @@ export const render = async (template: string, req: Request, res: Response) => {
   /*
     The template is split around <!--ssr-outlet-->.
     React output is streamed between the two parts.
+
+    Fastify sends streams natively: handing it a PassThrough keeps the
+    response streaming while preserving the onSend hooks (compression,
+    security headers, ...).
   */
-  res
-    .status(context.statusCode ?? 200)
-    .set("Content-Type", "text/html; charset=utf-8");
+  const responseStream = new PassThrough();
+
+  reply
+    .code(context.statusCode ?? 200)
+    .header("Content-Type", "text/html; charset=utf-8")
+    .send(responseStream);
 
   const [htmlStart, htmlEnd] = template.split("<!--ssr-outlet-->");
 
-  res.write(htmlStart);
+  responseStream.write(htmlStart);
 
   const transformStream = new Transform({
     transform(chunk, encoding, callback) {
-      res.write(chunk, encoding);
+      responseStream.write(chunk, encoding);
       callback();
     },
   });
@@ -178,6 +196,6 @@ export const render = async (template: string, req: Request, res: Response) => {
   pipe(transformStream);
 
   transformStream.on("finish", () => {
-    res.end(htmlEnd);
+    responseStream.end(htmlEnd);
   });
 };

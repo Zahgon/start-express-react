@@ -8,7 +8,7 @@
   - Assumes all upstream guarantees are already satisfied
 
   What this file intentionally does NOT do:
-  - No authentication (handled by auth middleware)
+  - No authentication (handled by the auth preHandler)
   - No authorization (handled by route-level checks)
   - No input validation (handled by validators)
   - No database logic (handled by repositories)
@@ -19,9 +19,9 @@
   - Handlers remain thin to keep behavior easy to audit
 */
 
-import type { RequestHandler } from "express";
-
+import type { RouteHandler } from "fastify";
 import itemRepository from "./itemRepository";
+import type { ItemDTOWithUserId } from "./itemSchemas";
 
 /* ************************************************************************ */
 /* Handlers                                                                 */
@@ -39,19 +39,19 @@ import itemRepository from "./itemRepository";
   - 400 if no Range header or format is invalid
   - 416 Range Not Satisfiable if start >= total
 */
-const browse: RequestHandler = (req, res) => {
+const browse: RouteHandler = async (request, reply) => {
   // This handler implements HTTP range semantics (single range only).
   // See https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Range_requests
 
-  res.setHeader("Accept-Ranges", "items");
+  reply.header("Accept-Ranges", "items");
 
   // Parse the Range header
   // Example: "Range: items=0-9"
 
-  const match = req.headers.range?.match(/^items=(\d+)-(\d+)$/);
+  const match = request.headers.range?.match(/^items=(\d+)-(\d+)$/);
 
   if (!match) {
-    res.sendStatus(400);
+    reply.code(400).send();
     return;
   }
 
@@ -62,8 +62,8 @@ const browse: RequestHandler = (req, res) => {
   const total = itemRepository.count();
 
   if (start < 0 || start > end || start >= total) {
-    res.setHeader("Content-Range", `items */${total}`);
-    res.sendStatus(416);
+    reply.header("Content-Range", `items */${total}`);
+    reply.code(416).send();
 
     return;
   }
@@ -75,11 +75,11 @@ const browse: RequestHandler = (req, res) => {
 
   // Set the Content-Range header and send the range of items (206)
 
-  res.setHeader(
+  reply.header(
     "Content-Range",
     `items ${start}-${Math.min(end, total - 1)}/${total}`,
   );
-  res.status(206).json(items);
+  reply.code(206).send(items);
 };
 
 /* ************************************************************************ */
@@ -88,13 +88,13 @@ const browse: RequestHandler = (req, res) => {
   Read a single item.
 
   Preconditions:
-  - `req.item` has been injected by the param converter
+  - `request.item` has been injected by the param converter
 
   Response:
   - 200 with the item payload
 */
-const read: RequestHandler = (req, res) => {
-  res.json(req.item);
+const read: RouteHandler = async (request, reply) => {
+  reply.send(request.item);
 };
 
 /* ************************************************************************ */
@@ -105,15 +105,15 @@ const read: RequestHandler = (req, res) => {
   Preconditions:
   - User is authenticated
   - User is authorized to access this item
-  - req.body has been validated and sanitized
+  - request.body has been validated and sanitized
 
   Response:
   - 204 No Content on success
 */
-const edit: RequestHandler = (req, res) => {
-  itemRepository.update(req.body);
+const edit: RouteHandler<{ Body: Item }> = async (request, reply) => {
+  itemRepository.update(request.body);
 
-  res.sendStatus(204);
+  reply.code(204).send();
 };
 
 /* ************************************************************************ */
@@ -123,15 +123,18 @@ const edit: RequestHandler = (req, res) => {
 
   Preconditions:
   - User is authenticated
-  - req.body has been validated and enriched with user_id
+  - request.body has been validated and enriched with user_id
 
   Response:
   - 201 Created with the new item's id
 */
-const add: RequestHandler = (req, res) => {
-  const insertId = itemRepository.create(req.body);
+const add: RouteHandler<{ Body: ItemDTOWithUserId }> = async (
+  request,
+  reply,
+) => {
+  const insertId = itemRepository.create(request.body);
 
-  res.status(201).json({ insertId });
+  reply.code(201).send({ insertId });
 };
 
 /* ************************************************************************ */
@@ -146,10 +149,10 @@ const add: RequestHandler = (req, res) => {
   Response:
   - 204 No Content
 */
-const destroy: RequestHandler = (req, res) => {
-  itemRepository.softDelete(req.item.id);
+const destroy: RouteHandler = async (request, reply) => {
+  itemRepository.softDelete(request.item.id);
 
-  res.sendStatus(204);
+  reply.code(204).send();
 };
 
 /* ************************************************************************ */
